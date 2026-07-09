@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeaveTrack - Register</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="auth-container">
+        <h1>📋 LeaveTrack</h1>
+
+        <div class="box">
+            <h2>Register</h2>
+
+            <div id="msg" class="msg"></div>
+
+            <form id="registerForm">
+                <label for="fullName">Full Name</label>
+                <input type="text" id="fullName" placeholder="Enter your full name" required>
+
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="Choose a username" required>
+
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Choose a password" required>
+
+                <label for="role">I am a</label>
+                <select id="role" required>
+                    <option value="STUDENT">Student</option>
+                    <option value="TEACHER">Teacher</option>
+                </select>
+
+                <button type="submit">Register</button>
+            </form>
+
+            <p>Already have an account? <a href="login.html">Login here</a></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // if already logged in, redirect
+        if (getToken()) {
+            if (getRole() === "TEACHER") {
+                window.location.href = "teacher.html";
+            } else {
+                window.location.href = "student.html";
+            }
+        }
+
+        document.getElementById("registerForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            hideMsg("msg");
+
+            var fullName = document.getElementById("fullName").value;
+            var username = document.getElementById("username").value;
+            var password = document.getElementById("password").value;
+            var role = document.getElementById("role").value;
+
+            apiCall("POST", "/auth/register", {
+                fullName: fullName,
+                username: username,
+                password: password,
+                role: role
+            }).then(function (data) {
+                if (data) {
+                    saveAuth(data);
+                    if (data.role === "TEACHER") {
+                        window.location.href = "teacher.html";
+                    } else {
+                        window.location.href = "student.html";
+                    }
+                }
+            }).catch(function (err) {
+                showMsg("msg", err.message, "error");
+            });
+        });
+    </script>
+
+</body>
+</html>

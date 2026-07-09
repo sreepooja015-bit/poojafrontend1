@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeaveTrack - Teacher Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- NAV BAR -->
+    <nav>
+        <div class="logo">📋 LeaveTrack</div>
+        <div class="nav-links">
+            <a href="teacher.html">Dashboard</a>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- WELCOME -->
+        <div class="welcome">
+            <h1 id="welcomeText">Welcome, Teacher!</h1>
+            <p>Manage your classes and student leave requests</p>
+        </div>
+
+        <!-- CREATE CLASS -->
+        <div class="box">
+            <h2>🏫 Create a Class</h2>
+
+            <div id="classMsg" class="msg"></div>
+
+            <form id="classForm" style="display: flex; gap: 10px; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label for="className">Class Name</label>
+                    <input type="text" id="className" placeholder="e.g. 10-A" required style="margin-bottom: 0;">
+                </div>
+                <button type="submit" style="height: 42px;">Create</button>
+            </form>
+
+            <div id="classesList" style="margin-top: 15px;"></div>
+        </div>
+
+        <!-- MANAGE LEAVE TYPES -->
+        <div class="box">
+            <h2>📝 Manage Leave Types</h2>
+
+            <div id="leaveTypeMsg" class="msg"></div>
+
+            <form id="leaveTypeForm" style="display: flex; gap: 10px; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label for="typeName">Type Name</label>
+                    <input type="text" id="typeName" placeholder="e.g. Sick Leave" required style="margin-bottom: 0;">
+                </div>
+                <div style="width: 120px;">
+                    <label for="maxDays">Max Days</label>
+                    <input type="number" id="maxDays" placeholder="10" min="1" required style="margin-bottom: 0;">
+                </div>
+                <button type="submit" style="height: 42px;">Add</button>
+            </form>
+
+            <div id="leaveTypesList" style="margin-top: 15px;"></div>
+        </div>
+
+        <!-- STUDENT LEAVE REQUESTS -->
+        <div class="box">
+            <h2>📋 Student Leave Requests</h2>
+            <p style="color: #666; font-size: 13px; margin-bottom: 10px;">Showing requests from your classes. Use Approve/Reject buttons for pending requests.</p>
+            <div id="requests">
+                <p class="empty">Loading...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // check auth
+        checkRole("TEACHER");
+
+        // set welcome text
+        document.getElementById("welcomeText").textContent = "Welcome, " + getUsername() + "!";
+
+        // ---- LOAD CLASSES ----
+        function loadClasses() {
+            apiCall("GET", "/classes").then(function (data) {
+                var container = document.getElementById("classesList");
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="empty">No classes created yet.</p>';
+                    return;
+                }
+                var html = '<table>';
+                html += '<tr><th>ID</th><th>Class Name</th></tr>';
+                for (var i = 0; i < data.length; i++) {
+                    html += '<tr><td>' + data[i].id + '</td><td>' + data[i].className + '</td></tr>';
+                }
+                html += '</table>';
+                container.innerHTML = html;
+            });
+        }
+
+        // ---- CREATE CLASS ----
+        document.getElementById("classForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            hideMsg("classMsg");
+
+            var className = document.getElementById("className").value;
+
+            // this endpoint uses query param, not JSON body
+            var token = getToken();
+            fetch(API + "/classes?className=" + encodeURIComponent(className), {
+                method: "POST",
+                headers: {
+                    "Authorization": "Bearer " + token
+                }
+            }).then(function (res) {
+                if (res.status === 401) { logout(); return; }
+                return res.json().then(function (data) {
+                    if (!res.ok) throw new Error(data.message || "Failed to create class");
+                    return data;
+                });
+            }).then(function (data) {
+                if (data) {
+                    showMsg("classMsg", "Class '" + data.className + "' created!", "success");
+                    document.getElementById("className").value = "";
+                    loadClasses();
+                }
+            }).catch(function (err) {
+                showMsg("classMsg", err.message, "error");
+            });
+        });
+
+        // ---- LOAD LEAVE TYPES ----
+        function loadLeaveTypes() {
+            apiCall("GET", "/leave-types").then(function (data) {
+                var container = document.getElementById("leaveTypesList");
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="empty">No leave types yet.</p>';
+                    return;
+                }
+                var html = '<table>';
+                html += '<tr><th>ID</th><th>Type Name</th><th>Max Days</th></tr>';
+                for (var i = 0; i < data.length; i++) {
+                    html += '<tr>';
+                    html += '<td>' + data[i].id + '</td>';
+                    html += '<td>' + data[i].typeName + '</td>';
+                    html += '<td>' + data[i].maxDays + '</td>';
+                    html += '</tr>';
+                }
+                html += '</table>';
+                container.innerHTML = html;
+            });
+        }
+
+        // ---- CREATE LEAVE TYPE ----
+        document.getElementById("leaveTypeForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            hideMsg("leaveTypeMsg");
+
+            var body = {
+                typeName: document.getElementById("typeName").value,
+                maxDays: Number(document.getElementById("maxDays").value)
+            };
+
+            apiCall("POST", "/leave-types", body).then(function (data) {
+                if (data) {
+                    showMsg("leaveTypeMsg", "Leave type '" + data.typeName + "' added!", "success");
+                    document.getElementById("typeName").value = "";
+                    document.getElementById("maxDays").value = "";
+                    loadLeaveTypes();
+                }
+            }).catch(function (err) {
+                showMsg("leaveTypeMsg", err.message, "error");
+            });
+        });
+
+        // ---- LOAD TEACHER REQUESTS ----
+        function loadRequests() {
+            apiCall("GET", "/requests/teacher").then(function (data) {
+                var container = document.getElementById("requests");
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="empty">No student leave requests found for your classes.</p>';
+                    return;
+                }
+                var html = '<table>';
+                html += '<tr><th>Student</th><th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Action</th></tr>';
+                for (var i = 0; i < data.length; i++) {
+                    html += '<tr>';
+                    html += '<td>' + data[i].studentName + '</td>';
+                    html += '<td>' + data[i].leaveTypeName + '</td>';
+                    html += '<td>' + data[i].startDate + '</td>';
+                    html += '<td>' + data[i].endDate + '</td>';
+                    html += '<td>' + data[i].reason + '</td>';
+                    html += '<td class="' + statusClass(data[i].status) + '">' + data[i].status + '</td>';
+                    html += '<td>';
+                    if (data[i].status === "PENDING") {
+                        html += '<button class="btn-approve" onclick="approveRequest(' + data[i].id + ')">Approve</button>';
+                        html += '<button class="btn-reject" onclick="rejectRequest(' + data[i].id + ')">Reject</button>';
+                    } else {
+                        html += '-';
+                    }
+                    html += '</td>';
+                    html += '</tr>';
+                }
+                html += '</table>';
+                container.innerHTML = html;
+            });
+        }
+
+        // ---- APPROVE / REJECT ----
+        function approveRequest(id) {
+            if (!confirm("Are you sure you want to APPROVE this request?")) return;
+
+            apiCall("PUT", "/requests/" + id + "/approve").then(function () {
+                alert("Request approved!");
+                loadRequests();
+            }).catch(function (err) {
+                alert("Error: " + err.message);
+            });
+        }
+
+        function rejectRequest(id) {
+            if (!confirm("Are you sure you want to REJECT this request?")) return;
+
+            apiCall("PUT", "/requests/" + id + "/reject").then(function () {
+                alert("Request rejected.");
+                loadRequests();
+            }).catch(function (err) {
+                alert("Error: " + err.message);
+            });
+        }
+
+        // ---- LOAD EVERYTHING ----
+        loadClasses();
+        loadLeaveTypes();
+        loadRequests();
+    </script>
+
+</body>
+</html>

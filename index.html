@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeaveTrack - Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="auth-container">
+        <h1>📋 LeaveTrack</h1>
+
+        <div class="box">
+            <h2>Login</h2>
+
+            <div id="msg" class="msg"></div>
+
+            <form id="loginForm">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="Enter your username" required>
+
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter your password" required>
+
+                <button type="submit">Login</button>
+            </form>
+
+            <p>Don't have an account? <a href="register.html">Register here</a></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // if already logged in, redirect
+        if (getToken()) {
+            if (getRole() === "TEACHER") {
+                window.location.href = "teacher.html";
+            } else {
+                window.location.href = "student.html";
+            }
+        }
+
+        document.getElementById("loginForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            hideMsg("msg");
+
+            var username = document.getElementById("username").value;
+            var password = document.getElementById("password").value;
+
+            apiCall("POST", "/auth/login", {
+                username: username,
+                password: password
+            }).then(function (data) {
+                if (data) {
+                    saveAuth(data);
+                    if (data.role === "TEACHER") {
+                        window.location.href = "teacher.html";
+                    } else {
+                        window.location.href = "student.html";
+                    }
+                }
+            }).catch(function (err) {
+                showMsg("msg", err.message, "error");
+            });
+        });
+    </script>
+
+</body>
+</html>

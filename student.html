@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeaveTrack - Student Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- NAV BAR -->
+    <nav>
+        <div class="logo">📋 LeaveTrack</div>
+        <div class="nav-links">
+            <a href="student.html">Dashboard</a>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- WELCOME -->
+        <div class="welcome">
+            <h1 id="welcomeText">Welcome, Student!</h1>
+            <p>Manage your leave requests below</p>
+        </div>
+
+        <!-- LEAVE BALANCES -->
+        <div class="box">
+            <h2>📊 My Leave Balances</h2>
+            <div id="balances" class="balance-grid">
+                <p class="empty">Loading...</p>
+            </div>
+        </div>
+
+        <!-- APPLY FOR LEAVE -->
+        <div class="box">
+            <h2>✏️ Apply for Leave</h2>
+
+            <div id="applyMsg" class="msg"></div>
+
+            <form id="applyForm">
+                <div class="form-row">
+                    <div>
+                        <label for="leaveType">Leave Type</label>
+                        <select id="leaveType" required>
+                            <option value="">-- Select --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="classId">Class</label>
+                        <select id="classId" required>
+                            <option value="">-- Select --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label for="startDate">Start Date</label>
+                        <input type="date" id="startDate" required>
+                    </div>
+                    <div>
+                        <label for="endDate">End Date</label>
+                        <input type="date" id="endDate" required>
+                    </div>
+                </div>
+
+                <label for="reason">Reason</label>
+                <textarea id="reason" placeholder="Why do you need leave?" required></textarea>
+
+                <button type="submit">Submit Request</button>
+            </form>
+        </div>
+
+        <!-- MY LEAVE REQUESTS -->
+        <div class="box">
+            <h2>📋 My Leave Requests</h2>
+            <div id="requests">
+                <p class="empty">Loading...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // check auth
+        checkAuth();
+
+        // if teacher, send them to teacher page
+        if (getRole() === "TEACHER") {
+            window.location.href = "teacher.html";
+        }
+
+        // set welcome text
+        document.getElementById("welcomeText").textContent = "Welcome, " + getUsername() + "!";
+
+        // ---- LOAD LEAVE TYPES (for dropdown and balance names) ----
+        var leaveTypes = [];
+
+        function loadLeaveTypes() {
+            return apiCall("GET", "/leave-types").then(function (data) {
+                if (data) {
+                    leaveTypes = data;
+                    var select = document.getElementById("leaveType");
+                    for (var i = 0; i < data.length; i++) {
+                        var opt = document.createElement("option");
+                        opt.value = data[i].id;
+                        opt.textContent = data[i].typeName + " (max " + data[i].maxDays + " days)";
+                        select.appendChild(opt);
+                    }
+                }
+            });
+        }
+
+        // ---- LOAD CLASSES (for dropdown) ----
+        function loadClasses() {
+            apiCall("GET", "/classes").then(function (data) {
+                if (data) {
+                    var select = document.getElementById("classId");
+                    for (var i = 0; i < data.length; i++) {
+                        var opt = document.createElement("option");
+                        opt.value = data[i].id;
+                        opt.textContent = data[i].className;
+                        select.appendChild(opt);
+                    }
+                }
+            });
+        }
+
+        // ---- LOAD BALANCES ----
+        function loadBalances() {
+            apiCall("GET", "/balances/my").then(function (data) {
+                var container = document.getElementById("balances");
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="empty">No leave balances found.</p>';
+                    return;
+                }
+                var html = "";
+                for (var i = 0; i < data.length; i++) {
+                    var typeName = "Unknown";
+                    for (var j = 0; j < leaveTypes.length; j++) {
+                        if (leaveTypes[j].id === data[i].leaveTypeId) {
+                            typeName = leaveTypes[j].typeName;
+                        }
+                    }
+                    html += '<div class="balance-card">';
+                    html += '<h4>' + typeName + '</h4>';
+                    html += '<div class="days">' + data[i].daysRemaining + '</div>';
+                    html += '<div class="used">Used: ' + data[i].daysUsed + ' days</div>';
+                    html += '</div>';
+                }
+                container.innerHTML = html;
+            });
+        }
+
+        // ---- LOAD MY REQUESTS ----
+        function loadRequests() {
+            apiCall("GET", "/requests/student").then(function (data) {
+                var container = document.getElementById("requests");
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="empty">No leave requests yet. Apply for one above!</p>';
+                    return;
+                }
+                var html = '<table>';
+                html += '<tr><th>#</th><th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th></tr>';
+                for (var i = 0; i < data.length; i++) {
+                    html += '<tr>';
+                    html += '<td>' + data[i].id + '</td>';
+                    html += '<td>' + data[i].leaveTypeName + '</td>';
+                    html += '<td>' + data[i].startDate + '</td>';
+                    html += '<td>' + data[i].endDate + '</td>';
+                    html += '<td>' + data[i].reason + '</td>';
+                    html += '<td class="' + statusClass(data[i].status) + '">' + data[i].status + '</td>';
+                    html += '</tr>';
+                }
+                html += '</table>';
+                container.innerHTML = html;
+            });
+        }
+
+        // ---- SUBMIT LEAVE REQUEST ----
+        document.getElementById("applyForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            hideMsg("applyMsg");
+
+            var body = {
+                leaveTypeId: Number(document.getElementById("leaveType").value),
+                classId: Number(document.getElementById("classId").value),
+                startDate: document.getElementById("startDate").value,
+                endDate: document.getElementById("endDate").value,
+                reason: document.getElementById("reason").value
+            };
+
+            apiCall("POST", "/requests", body).then(function (data) {
+                if (data) {
+                    showMsg("applyMsg", "Leave request submitted successfully!", "success");
+                    document.getElementById("applyForm").reset();
+                    loadRequests();
+                    loadBalances();
+                }
+            }).catch(function (err) {
+                showMsg("applyMsg", err.message, "error");
+            });
+        });
+
+        // ---- LOAD EVERYTHING ----
+        loadLeaveTypes().then(function () {
+            loadBalances();
+        });
+        loadClasses();
+        loadRequests();
+    </script>
+
+</body>
+</html>
